@@ -22,4 +22,9 @@ jobs:
           pip install -r requirements.txt
 
       - name: execute py script # run main.py
+        env:
+          BASEID: ${{ secrets.BASEID }}
+          TABLEID: ${{ secrets.TABLEID }}
+          TOKEN: ${{ secrets.TOKEN }}
+          WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
         run: python main.py
