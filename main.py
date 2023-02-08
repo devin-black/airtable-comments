@@ -1,158 +1,185 @@
-import requests
+import logging
 import os
+import sys
 from datetime import datetime, timedelta
 
+import requests
 from dotenv import load_dotenv
 from slack_sdk import WebhookClient
 
+logging.basicConfig(level=logging.INFO)
+
+
+def request_api(url: str, headers: dict, timeout: int = 10) -> requests.Response:
+    for i in range(3):
+        try:
+            response = requests.get(url=url, headers=headers, timeout=timeout)
+            return response
+        except requests.exceptions.Timeout:
+            if i == 2:
+                logging.error("Request timed out 3 times. Quitting.")
+                sys.exit()
+            else:
+                logging.warning("Request timed out. Trying again...")
+
+
 def main():
-   #How many days back to show recent comments?
-   #https://www.python-engineer.com/posts/run-python-github-actions/
-   #Cron for every weekday at 00:00 (UTC): 0 0 * * 1-5
-   if datetime.now().weekday() < 5 and datetime.now().weekday() > 0:
-      recentHoursBack = 24
-      sendToSlack = True
-   elif datetime.now().weekday() == 0:
-      recentHoursBack = 48
-      sendToSlack = True
-   else:
-      recentHoursBack = 0
-      sendToSlack = False
-      exit()
+    # How many days back to show recent comments?
+    if datetime.now().weekday() < 5 and datetime.now().weekday() > 0:
+        recent_hours_back = 24
+    elif datetime.now().weekday() == 0:
+        recent_hours_back = 48
+    else:
+        logging.error("Not a valid day. Quitting.")
+        sys.exit()
 
-   try:
-      load_dotenv()
-      baseId = os.getenv('BASEID')
-      tableId = os.getenv('TABLEID')
-      token = os.getenv('TOKEN')
-      webhook_url = os.getenv('WEBHOOK_URL')
-   except:
-      print("Error loading env file")
-   else:
-      if not baseId or not tableId or not token:
-         print("Env file found but error loading variables")
-         exit()
+    # Get env vars — first try OS, then try .env
+    base_id = os.environ.get("BASE_ID")
+    table_id = os.environ.get("TABLE_ID")
+    token = os.environ.get("TOKEN")
+    webhook_url = os.environ.get("WEBHOOK_URL")
 
-   #API header
-   headers = {
-      "Authorization": f"Bearer {token}"
-   }
+    if not all([base_id, table_id, token, webhook_url]):
+        logging.info("No env vars from OS. Trying .env file.")
+        load_dotenv()
+        base_id = os.environ.get("BASE_ID")
+        table_id = os.environ.get("TABLE_ID")
+        token = os.environ.get("TOKEN")
+        webhook_url = os.environ.get("WEBHOOK_URL")
 
+    if not all([base_id, table_id, token, webhook_url]):
+        logging.error("Could not retrieve required environment variables. Quitting")
+        sys.exit()
 
-   #Get record IDs
-   allRecords = []
+    # API header
+    headers = {"Authorization": f"Bearer {token}"}
 
-   recordsUrl = f"https://api.airtable.com/v0/{baseId}/{tableId}"
-   records = requests.get(recordsUrl, headers=headers)
-   records = records.json()
-   allRecords.extend(records['records'])
+    # Get record IDs
+    all_records = []
 
-   offset = records['offset']
+    records_url = f"https://api.airtable.com/v0/{base_id}/{table_id}"
 
-   #Now paginate
-   while True:
-      recordsUrl = f"https://api.airtable.com/v0/{baseId}/{tableId}?pageSize=100&offset={offset}"
-      records = requests.get(recordsUrl, headers=headers)
-      records = records.json()
-      allRecords.extend(records['records'])
+    records = request_api(url=records_url, headers=headers)
 
-      try:
-         offset = records['offset']
-      except KeyError:
-         break
+    records = records.json()
+    all_records.extend(records["records"])
 
-   recordIds = []
-   newRecords = {}
+    offset = records["offset"]
 
-   print(f"Retrieved {len(allRecords)} records")
+    # Now paginate
+    while True:
+        records_url = f"https://api.airtable.com/v0/{base_id}/{table_id}?pageSize=100&offset={offset}"
 
-   for record in allRecords:
-      #Grab ID for later to use for comments
-      recordIds.append(record["id"])
-      
-   print("Successfully retrieved record IDs")
+        records = request_api(url=records_url, headers=headers)
 
-   #Get comments
-   allComments = []
-   for recordId in recordIds:
-      commentsUrl = f"https://api.airtable.com/v0/{baseId}/{tableId}/{recordId}/comments?pageSize=100"
-      comments = requests.get(commentsUrl, headers=headers)
-      comments = comments.json()
-      try:
-         comments = comments["comments"][0]
-      except IndexError:
-         #If no comments
-         continue
+        records = records.json()
+        all_records.extend(records["records"])
 
-      #Just take what we need
-      commentPretty = {}
-      commentPretty['id'] = comments['id']
-      commentPretty['author'] = comments['author']['name']
-      commentPretty['createdTime'] = comments['createdTime']
-      commentPretty['text'] = comments['text']
+        try:
+            offset = records["offset"]
+        except KeyError:
+            break
 
-      #Add the record ID
-      commentPretty['recordId'] = recordId
+    record_ids = []
 
-      allComments.append(commentPretty)
-      print(f"Retrieved comment for record {recordId}")
+    logging.info(f"Retrieved {len(all_records)} records")
 
-   print(f"Retrieved {len(allComments)} comments")
+    for record in all_records:
+        # Grab ID for later to use for comments
+        record_ids.append(record["id"])
 
-   #Add record info to comments
-   allCommentsWithRecordId = []
-   for comment in allComments:
-      for record in allRecords:
-         if record['id'] == comment['recordId']:
-            comment['recordName'] = record["fields"]["Record Name"]
-            comment['phase'] = record["fields"]["Phase"]
-            allCommentsWithRecordId.append(comment)
+    logging.info("Successfully retrieved record IDs")
 
-   allComments = allCommentsWithRecordId
+    # Get comments
+    all_comments = []
+    for record_id in record_ids:
+        comments_url = f"https://api.airtable.com/v0/{base_id}/{table_id}/{record_id}/comments?pageSize=100"
 
-   print("Successfully retrieved comments")
+        comments = request_api(url=comments_url, headers=headers)
 
-   #Now find recent comments:
-   oneDayAgo = datetime.now() - timedelta(hours=recentHoursBack)
-   recentComments = [
-      comment for comment in allComments if 
-      datetime.fromisoformat(comment["createdTime"][:-1]) > oneDayAgo
-   ]
+        comments = comments.json()
+        try:
+            comments = comments["comments"][0]
+        except IndexError:
+            # If no comments
+            continue
 
-   #Package up comments and send to Slack'
-   webhook = WebhookClient(webhook_url)
+        # Just take what we need
+        comment_pretty = {}
+        comment_pretty["id"] = comments["id"]
+        comment_pretty["author"] = comments["author"]["name"]
+        comment_pretty["createdTime"] = comments["createdTime"]
+        comment_pretty["text"] = comments["text"]
 
-   if sendToSlack and len(recentComments) > 0:
-      response = webhook.send(text="Airtable comments summary", blocks=[
-         {
-            "type": "section",
-            "text": {
-               "type": "mrkdwn",
-               "text": f"_Airtable comments from the last {recentHoursBack} hours:_"
-            }
-         }
-      ])
-      for comment in recentComments:
-         #make date a little prettier
-         formattedDate = datetime.strptime(comment['createdTime'], '%Y-%m-%dT%H:%M:%S.%fZ').strftime("%b %d %Y %H:%M:%S")
+        # Add the record ID
+        comment_pretty["recordId"] = record_id
 
-         payload = f"""
-         On *{comment['recordName']}* (Phase: {comment['phase']})\nBy {comment['author']} at {formattedDate} (UTC)
+        all_comments.append(comment_pretty)
+        logging.info(f"Retrieved comment for record {record_id}")
+
+    logging.info(f"Retrieved {len(all_comments)} comments")
+
+    # Add record info to comments
+    all_comments_with_record_id = []
+    for comment in all_comments:
+        for record in all_records:
+            if record["id"] == comment["recordId"]:
+                comment["recordName"] = record["fields"]["Record Name"]
+                comment["phase"] = record["fields"]["Phase"]
+                all_comments_with_record_id.append(comment)
+
+    all_comments = all_comments_with_record_id
+
+    logging.info("Successfully added record info to comments")
+
+    # Now find recent comments:
+    one_day_ago = datetime.now() - timedelta(hours=recent_hours_back)
+    recent_comments = [
+        comment
+        for comment in all_comments
+        if datetime.fromisoformat(comment["createdTime"][:-1]) > one_day_ago
+    ]
+
+    # Package up comments and send to Slack'
+    webhook = WebhookClient(webhook_url)
+
+    if recent_comments:
+        webhook.send(
+            text="Airtable comments summary",
+            blocks=[
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": f"_Airtable comments from the last {recent_hours_back} hours:_",
+                    },
+                }
+            ],
+        )
+        for comment in recent_comments:
+            # make date a little prettier
+            formatted_date = datetime.strptime(
+                comment["createdTime"], "%Y-%m-%dT%H:%M:%S.%fZ"
+            ).strftime("%b %d %Y %H:%M:%S")
+
+            payload = f"""
+         On *{comment['recordName']}* (Phase: {comment['phase']})\nBy {comment['author']} at {formatted_date} (UTC)
          ```{comment['text']}```
          """
-         
 
-         response = webhook.send(blocks=[
-            {
-               "type": "section",
-               "text": {
-                  "type": "mrkdwn",
-                  "text": payload
-               }
-            }
-         ])
+            webhook.send(
+                blocks=[
+                    {"type": "section", "text": {"type": "mrkdwn", "text": payload}}
+                ]
+            )
 
-   print("Done")
+            logging.info("Done")
+            sys.exit(0)
+
+    else:
+        logging.warning("No recent comments to send. Quitting.")
+        sys.exit()
+
 
 if __name__ == "__main__":
-   main()
+    main()
