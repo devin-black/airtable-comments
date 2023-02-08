@@ -3,7 +3,7 @@ name: run main.py
 on:
   #push:
   schedule:
-    - cron: '*/27 2 * * 1-5'
+    - cron: '*/27 9 * * 1-5'
 
 jobs:
   build:
