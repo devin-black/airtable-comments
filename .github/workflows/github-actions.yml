@@ -24,8 +24,8 @@ jobs:
 
       - name: execute py script # run main.py
         env:
-          BASEID: ${{ secrets.BASEID }}
-          TABLEID: ${{ secrets.TABLEID }}
+          BASEID: ${{ secrets.BASE_ID }}
+          TABLEID: ${{ secrets.TABLE_ID }}
           TOKEN: ${{ secrets.TOKEN }}
           WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
         run: python main.py
