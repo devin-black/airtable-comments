@@ -34,10 +34,10 @@ def main():
         sys.exit()
 
     # Get env vars — first try OS, then try .env
-    base_id = os.environ.get("BASE_ID")
-    table_id = os.environ.get("TABLE_ID")
-    token = os.environ.get("TOKEN")
-    webhook_url = os.environ.get("WEBHOOK_URL")
+    base_id = os.environ["BASE_ID"]
+    table_id = os.environ["TABLE_ID"]
+    token = os.environ["TOKEN"]
+    webhook_url = os.environ["WEBHOOK_URL"]
 
     if not all([base_id, table_id, token, webhook_url]):
         logging.info("No env vars from OS. Trying .env file.")
