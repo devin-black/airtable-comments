@@ -172,7 +172,7 @@ def main():
                     {"type": "section", "text": {"type": "mrkdwn", "text": payload}}
                 ]
             )
-
+            logging.info(f"Sent {len(recent_comments)} comments to Slack")
             logging.info("Done")
             sys.exit(0)
 
