@@ -82,13 +82,14 @@ def main():
 
     record_ids = []
 
-    logging.info(f"Retrieved {len(all_records)} records")
+    logging.info("Retrieved records")
 
     for record in all_records:
         # Grab ID for later to use for comments
         record_ids.append(record["id"])
 
     logging.info("Successfully retrieved record IDs")
+    logging.info("Beginning retrieving comments")
 
     # Get comments
     all_comments = []
@@ -115,9 +116,8 @@ def main():
         comment_pretty["recordId"] = record_id
 
         all_comments.append(comment_pretty)
-        logging.info(f"Retrieved comment for record {record_id}")
 
-    logging.info(f"Retrieved {len(all_comments)} comments")
+    logging.info("Retrieved comments")
 
     # Add record info to comments
     all_comments_with_record_id = []
@@ -172,7 +172,7 @@ def main():
                     {"type": "section", "text": {"type": "mrkdwn", "text": payload}}
                 ]
             )
-            logging.info(f"Sent {len(recent_comments)} comments to Slack")
+            logging.info("Sent comments to Slack")
             logging.info("Done")
             sys.exit(0)
 
