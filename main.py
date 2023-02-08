@@ -34,7 +34,7 @@ def main():
         sys.exit()
 
     # Get env vars — first try OS, then try .env
-    base_id = os.environ("BASE_ID")
+    base_id = os.environ.get("BASE_ID")
     table_id = os.environ.get("TABLE_ID")
     token = os.environ.get("TOKEN")
     webhook_url = os.environ.get("WEBHOOK_URL")
