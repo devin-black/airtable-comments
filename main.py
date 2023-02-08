@@ -7,7 +7,7 @@ import requests
 from dotenv import load_dotenv
 from slack_sdk import WebhookClient
 
-logging.basicConfig(level=logging.WARNING)
+logging.basicConfig(level=logging.INFO)
 
 
 def request_api(url: str, headers: dict, timeout: int = 10) -> requests.Response:
