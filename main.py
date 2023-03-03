@@ -38,6 +38,7 @@ def main():
     table_id = os.environ.get("TABLE_ID")
     token = os.environ.get("TOKEN")
     webhook_url = os.environ.get("WEBHOOK_URL")
+    logging.info("Env vars loaded")
 
     if not all([base_id, table_id, token, webhook_url]):
         logging.info("No env vars from OS. Trying .env file.")
@@ -46,6 +47,7 @@ def main():
         table_id = os.environ.get("TABLE_ID")
         token = os.environ.get("TOKEN")
         webhook_url = os.environ.get("WEBHOOK_URL")
+        logging.info(".env file success")
 
     if not all([base_id, table_id, token, webhook_url]):
         logging.error("Could not retrieve required environment variables. Quitting")
